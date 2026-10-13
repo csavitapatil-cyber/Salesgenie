@@ -1,0 +1,1902 @@
+{
+  "name": "sales genie draft",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0",
+          "mode": "list",
+          "cachedResultName": "crm_export_sample",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1681680280,
+          "mode": "list",
+          "cachedResultName": "crm_export_sample",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit#gid=1681680280"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1088,
+        960
+      ],
+      "id": "25c577b3-3f3f-4b0c-b7dc-93070f720ad5",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nWY3IfHfG91y6OOs",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extract CRM information from the following inbound email.\n\nWORKFLOW METADATA\nrow_number: {{ $json.row_number }}\ndate_received: {{ $json.date_received }}\n\nRAW EMAIL\n{{ $json.Email }}",
+        "options": {
+          "systemMessage": "You are the Email Ingestion Agent for Oak & Ember Interiors.\n\nTASK\nRead one inbound customer email and optional workflow metadata. Extract CRM-ready information accurately.\n\nYou must return exactly one valid JSON object.\nDo not return Markdown.\nDo not include explanations before or after the JSON.\nDo not wrap the JSON in an \"output\" field.\nDo not return JSON as an escaped string.\n\nUSE ONLY PROVIDED INFORMATION\n- Extract facts only from the email and workflow metadata.\n- Never invent a customer name, company, product, budget, date, deadline, or order number.\n- Use null when a value is not available.\n- Always extract the sender email address from the \"From:\" header when it is present, including for spam, complaints, and vague messages.\n- Always use date_received from workflow metadata when it is provided.\n- Set source to \"Email\".\n\nRETURN THIS EXACT JSON SCHEMA AND KEY ORDER\n{\n  \"lead_id\": null,\n  \"customer_name\": null,\n  \"email\": null,\n  \"company\": null,\n  \"product_interest\": null,\n  \"budget\": null,\n  \"urgency\": null,\n  \"source\": \"Email\",\n  \"date_received\": null,\n  \"status\": null,\n  \"assigned_to\": null,\n  \"notes\": null\n}\n\nFIELD RULES\n\n1. lead_id\n- If row_number is present in metadata, set it to \"LEAD-\" followed by row_number.\n- Example: row_number 2 becomes \"LEAD-2\".\n- If row_number is missing, use null.\n\n2. customer_name\n- Extract the sender's full name from the signature or email body.\n- Example: \"Thanks, John Martinez\" becomes \"John Martinez\".\n- Do not derive a person’s name from their email address.\n- Use null if no name is stated.\n\n3. email\n- Extract the email address from the From: header.\n- Example: \"From: john.martinez@techcorp.com\" becomes \"john.martinez@techcorp.com\".\n- Keep this field even if the message is Spam or Support.\n- Use null only when no email address is present.\n\n4. company\n- Extract the company or organization explicitly stated in the signature or email body.\n- Examples: \"TechCorp\", \"BigCorp Industries\", \"Downtown Law Partners LLP\".\n- Do not infer company from the sender email domain.\n- Use null if not explicitly stated.\n\n5. product_interest\nUse a concise, normalized description. Examples:\n- Standing Desk\n- Standing Desks (bulk)\n- Office Chairs\n- Office Chairs (bulk)\n- Conference Table\n- Oak Executive Desk (color question)\n- Walnut Executive Desk (availability question)\n- Desk Accessories\n- Full Office Package\n- Price Match: Ergonomic Pro Chair\n\nFor multiple product requirements, use a comma-separated summary.\nExample: \"Standing Desks, Ergonomic Task Chairs, Huddle Room Tables\".\n\n6. budget\n- Return a JSON number only, never \"$\" or text.\n- Use the explicitly stated total budget when available.\n- Examples: \"$5,000 total\" = 5000; \"$3,000\" = 3000; \"$50,000\" = 50000.\n- For a range, use the maximum value.\n- Example: \"$40-50\" = 50.\n- If only separate per-item budgets exist and there is no stated total, use null and include the per-item budgets in notes.\n- If both a total and per-unit budget exist, use the stated total.\n- Use null when no budget is stated.\n\n7. urgency\nUse only one of: \"High\", \"Medium\", \"Low\", or null.\n\n- High:\n  - Explicit deadline, delivery requirement, ASAP language, end-of-month request, or large bulk/enterprise purchase.\n  - Examples: \"need them by end of month\", \"6-week timeline\", \"30 workstations\".\n\n- Medium:\n  - Clear purchase intent, a product requirement, price-match request, comparison request, or availability request without a fixed deadline.\n\n- Low:\n  - Vague inquiry, simple product question, color question, or low-information browsing request.\n\n- null:\n  - Spam only, or when urgency cannot be reasonably assessed.\n\n8. status\nUse only one of: \"Open\", \"Needs Info\", \"Support\", or \"Spam\".\n\n- \"Open\":\n  A genuine sales inquiry with a specific product, quantity, budget, requirement, timeline, pricing request, competitor comparison, or availability question.\n\n- \"Needs Info\":\n  A genuine but vague sales inquiry with insufficient detail.\n  Examples: \"I need furniture.\" or \"Do you have chairs? How much?\"\n\n- \"Support\":\n  A complaint, refund request, replacement request, late delivery issue, damaged product issue, or existing order issue.\n\n- \"Spam\":\n  Obvious unwanted content, gibberish, clickbait, suspicious links, aggressive promotional language, or messages with no legitimate customer inquiry.\n  Preserve the extracted email and metadata date for spam.\n\n9. assigned_to\n- Always return null.\n- Assignment occurs in a later workflow step.\n\n10. notes\nCreate a concise plain-text summary of useful details extracted from the message.\nInclude only facts present in the email.\n\nInclude when relevant:\n- quantity\n- requested finish/color\n- delivery deadline\n- use case\n- per-unit budget\n- total budget\n- competitor name\n- price-match request\n- order number\n- account number\n- firm/industry context\n- reason for Spam or Support classification\n\nNotes examples:\n- \"Home office; dark walnut finish; adjustable height; budget under $800.\"\n- \"Quantity: 10; approximately $500 per chair; delivery needed by end of month.\"\n- \"Comparing against IKEA BEKANT; quantity: 15+; asks about bulk discount.\"\n- \"Order #ORD-88291; delivery 3 weeks late; desk arrived scratched; requests replacement or refund.\"\n- \"Suspicious promotional spam with clickbait language and external link.\"\n\nIMPORTANT SPECIAL CASES\n- Product questions such as color or availability are valid inquiries. Set status to \"Open\", but do not invent catalog facts.\n- Complaint/support emails are not sales leads. Set status to \"Support\".\n- Spam is not a lead. Set status to \"Spam\", urgency to null, and do not infer product interest or budget from spam language.\n- Vague emails are not spam unless there are obvious spam indicators. Use status \"Needs Info\"."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -480,
+        976
+      ],
+      "id": "184f308f-4446-454e-a852-b148517e30c0",
+      "name": "Email Ingestion Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini",
+          "cachedResultUrl": ""
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1056,
+        1120
+      ],
+      "id": "a789b207-d2e4-4834-88c7-68765951e8b4",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "2Ib6MMdl8cUUdeec",
+          "name": "OpenAI account 17"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Classify this eligible sales inquiry as Hot, Warm, or Cold.\n\nMESSAGE TYPE:\nsales_inquiry\n\nCUSTOMER / LEAD DETAILS:\n{{ JSON.stringify($json) }}",
+        "options": {
+          "systemMessage": "You are the Lead Qualifier Agent for Oak & Ember Interiors, a home and office furniture company.\n\nYOUR SINGLE JOB\nClassify an ELIGIBLE SALES INQUIRY as exactly one sales-priority tier:\n- Hot\n- Warm\n- Cold\n\nYou receive one email that has already been screened by the Email Ingestion / Router workflow. Only valid sales inquiries or vague sales inquiries should be sent to you.\n\nDO NOT HANDLE THESE MESSAGE TYPES\nThis agent must not be called for:\n- spam or phishing\n- complaints, returns, damaged-item issues, refund requests, or order support\n- product-information-only questions, such as color, dimensions, or stock availability, when there is no buying requirement\n\nIf `message_type` is anything other than `sales_inquiry` or `vague_inquiry`, do not attempt to infer sales intent. The workflow must route that record outside this agent.\n\nINPUT\nYou will receive:\n- RAW_EMAIL: full inbound email text, including From, Subject, body, and signature\n- message_type: `sales_inquiry` or `vague_inquiry`\n- optional extracted fields: customer_name, email, company, product_interest, budget, urgency, quantity, deadline, notes\n\nGROUNDING RULES\n- Use only facts stated in RAW_EMAIL and the optional extracted fields.\n- Do not invent a budget, quantity, deadline, company size, delivery date, purchase intent, or customer requirement.\n- Treat extracted fields as helpful context, but prioritize RAW_EMAIL if there is a conflict.\n- Do not use the sender's email domain by itself as evidence of company size, budget, or purchase readiness.\n- A competitor mention, price-match request, bulk-discount request, or product comparison is a sales signal only when it appears in the supplied input.\n\nCLASSIFICATION RUBRIC\n\nHOT — immediate sales follow-up is justified\nClassify as Hot when the inquiry has clear purchase intent AND at least one strong qualification signal.\n\nStrong signals include:\n- a stated total or per-unit budget\n- a stated quantity, especially bulk/multi-workstation need\n- an explicit delivery deadline, timeline, or urgency\n- request for quote, pricing, proposal, availability with intent to order, or product options\n- procurement/facilities/operations request with concrete requirements\n- enterprise or multi-location furnishing requirement\n\nExamples of Hot signals:\n- “Need 10 ergonomic chairs; $5,000 total; delivery by end of month.”\n- “Please prepare a proposal for 30 desks, 30 chairs, and five meeting tables.”\n- “We have $50,000 allocated across three locations and need volume pricing.”\n- “I’ll buy 5 if you can beat this competitor’s price.”\n\nWARM — genuine commercial interest, but discovery or nurturing is needed\nClassify as Warm when there is meaningful interest but insufficient urgency or qualification for Hot.\n\nTypical Warm signals:\n- product comparison or evaluation, including competitor comparison\n- request for bulk discount without a firm budget or deadline\n- clear product requirements but no purchase timing, quantity, or budget\n- price-match question with uncertain buying commitment\n- an availability question that includes expressed intent to buy, but has no timeline/budget\n\nExamples:\n- “We are evaluating standing desks for our team and comparing them with IKEA. Do you offer a bulk discount?”\n- “I have wanted to order this desk for weeks. When will it be back in stock?”\n- “I need a standing desk for a home office, adjustable height, dark walnut finish,” with no stated budget or deadline.\n\nCOLD — a valid sales inquiry, but too vague to prioritize\nClassify as Cold when the message expresses a possible buying need but lacks sufficient usable detail.\n\nCold signals:\n- no clear product category, quantity, budget, timeline, or business context\n- minimal request such as “I need furniture” or “Do you have chairs? How much?”\n- a broad low-information shopping inquiry that needs clarification\n\nExamples:\n- “Hi, I need furniture.”\n- “Furniture please.”\n- “Do you have chairs? How much?”\n\nDECISION ORDER\nApply these checks in order:\n1. Confirm that `message_type` is `sales_inquiry` or `vague_inquiry`.\n2. Look for clear purchase intent.\n3. Identify strong qualification signals: budget, quantity, timeline/deadline, quote/proposal request, delivery need, or bulk/enterprise scope.\n4. If clear purchase intent plus one or more strong qualification signals exists, return Hot.\n5. Otherwise, if there is meaningful product-specific commercial interest, comparison, discount, price-match, or intent-to-order signal, return Warm.\n6. Otherwise, return Cold.\n\nTIE-BREAKING RULES\n- Explicit deadline or a multi-item/bulk order normally raises a genuine purchase inquiry to Hot.\n- A competitor comparison with team/bulk context is normally Warm; it becomes Hot if a budget, firm quantity, deadline, proposal request, or strong buying commitment is also stated.\n- A product availability question is Warm only if the customer expresses intent to purchase. Otherwise it should never reach this agent; route it as a product question.\n- Do not turn a vague inquiry into Warm or Hot based on a professional-looking email address or assumed company.\n- Do not lower a detailed bulk request because the exact product model is unknown.\n\nOUTPUT RULES\n- Output only one valid JSON object.\n- Do not output Markdown, explanations, reasoning, labels, or extra keys.\n- Do not wrap JSON in an `output` field.\n- Do not return an escaped JSON string.\n- The JSON must contain exactly one key: `classification`.\n- The value must be exactly one of: `Hot`, `Warm`, or `Cold`.\n\nREQUIRED OUTPUT FORMAT\n{\"classification\":\"Hot\"}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        656,
+        912
+      ],
+      "id": "136c46a5-4bba-4c5b-aecd-4bb1c6fcaec2",
+      "name": "Lead Qualifier Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -96,
+        1264
+      ],
+      "id": "94d02ca0-fc42-4075-a9b5-98ca76d90533",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        816,
+        1840
+      ],
+      "id": "06682745-62a1-41e3-80ae-2dbf623afe3f",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Read the Email Ingestion Agent result\nconst ingestionRaw = $('Email Ingestion Agent').first().json;\n\n// Read the incoming Lead Qualifier result\nconst qualifierRaw = $json;\n\n/**\n * Converts:\n * 1. A normal JSON object -> same object\n * 2. { output: \"{...}\" } -> parsed object\n * 3. A JSON string -> parsed object\n */\nfunction parseAgentOutput(data) {\n  // If the entire value is a JSON string, parse it.\n  if (typeof data === 'string') {\n    try {\n      return JSON.parse(data);\n    } catch (error) {\n      return {};\n    }\n  }\n\n  // If n8n/AI Agent stores the actual result inside output as a JSON string.\n  if (data?.output && typeof data.output === 'string') {\n    try {\n      return JSON.parse(data.output);\n    } catch (error) {\n      return data;\n    }\n  }\n\n  // If output is already an object.\n  if (data?.output && typeof data.output === 'object') {\n    return data.output;\n  }\n\n  // Standard object output.\n  return data || {};\n}\n\nconst ingestion = parseAgentOutput(ingestionRaw);\nconst qualifier = parseAgentOutput(qualifierRaw);\n\n// Return one clean, flat lead record.\nreturn {\n  json: {\n    lead_id: ingestion.lead_id || null,\n    customer_name: ingestion.customer_name || null,\n    email: ingestion.email || null,\n    company: ingestion.company || null,\n    product_interest: ingestion.product_interest || null,\n    budget: ingestion.budget ?? null,\n    urgency: ingestion.urgency ?? null,\n    source: ingestion.source || 'Email',\n    date_received: ingestion.date_received ?? null,\n    status: ingestion.status || null,\n    assigned_to: ingestion.assigned_to ?? null,\n    notes: ingestion.notes || null,\n\n    // This comes from Lead Qualifier Agent.\n    classification: qualifier.classification || null,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        800
+      ],
+      "id": "e7efaae9-e3da-4fc7-9872-08f43bfeeeee",
+      "name": "ingestion+ qualifier"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function randomHex(length) {\n  const chars = '0123456789abcdef';\n  let value = '';\n\n  for (let i = 0; i < length; i++) {\n    value += chars[Math.floor(Math.random() * chars.length)];\n  }\n\n  return value;\n}\n\nconst rawEmail = $json.Email || $json.raw_email || '';\n\nreturn {\n  json: {\n    ...$json,\n    trace_context: {\n      // One trace ID for the entire processing journey of ONE email.\n      trace_id: randomHex(32),\n\n      // The workflow/root span.\n      root_span_id: randomHex(16),\n\n      workflow_run_id: `sg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,\n      trace_name: 'salesgenie.email.process',\n      environment: 'development',\n      workflow_version: 'phase-2-v1',\n      catalog_version: 'google-sheets-phase-1',\n      source: 'Email',\n\n      workflow_start_unix_nano: `${Date.now()}000000`,\n\n      // Safe input metadata. Do not add raw email content or full email address.\n      input_row_number: $json.row_number || null,\n      raw_email_present: rawEmail.length > 0,\n      raw_email_length: rawEmail.length,\n    },\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -704,
+        960
+      ],
+      "id": "493ae96c-4d13-4264-a290-1a03fb9eebed",
+      "name": "Create SalesGenie Trace Context"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function randomHex(length) {\n  const chars = '0123456789abcdef';\n  let value = '';\n  for (let i = 0; i < length; i++) {\n    value += chars[Math.floor(Math.random() * chars.length)];\n  }\n  return value;\n}\n\n// Agent output can be direct JSON or a JSON string in `output`.\nlet ingestion = $json.output || $json;\nif (typeof ingestion === 'string') {\n  try {\n    ingestion = JSON.parse(ingestion);\n  } catch {\n    ingestion = {};\n  }\n}\n\n// `.item` preserves the paired source item when the workflow runs multiple rows.\nconst source = $('Create SalesGenie Trace Context').item.json;\nconst trace = source.trace_context;\nconst endTimeUnixNano = `${Date.now()}000000`;\n\nreturn {\n  json: {\n    resourceSpans: [\n      {\n        resource: {\n          attributes: [\n            { key: 'service.name', value: { stringValue: 'salesgenie-n8n' } },\n            { key: 'deployment.environment.name', value: { stringValue: trace.environment } },\n          ],\n        },\n        scopeSpans: [\n          {\n            scope: { name: 'salesgenie', version: '1.0.0' },\n            spans: [\n              {\n                traceId: trace.trace_id,\n                spanId: randomHex(16),\n                parentSpanId: trace.root_span_id,\n                name: 'email.ingestion',\n                kind: 1,\n                startTimeUnixNano: trace.workflow_start_unix_nano,\n                endTimeUnixNano,\n                attributes: [\n                  { key: 'langfuse.trace.name', value: { stringValue: trace.trace_name } },\n                  { key: 'langfuse.observation.type', value: { stringValue: 'generation' } },\n                  { key: 'langfuse.observation.input', value: { stringValue: JSON.stringify({\n                    source: 'Email',\n                    raw_email_present: trace.raw_email_present,\n                    raw_email_length: trace.raw_email_length,\n                  }) } },\n                  { key: 'langfuse.observation.output', value: { stringValue: JSON.stringify({\n                    lead_id_present: Boolean(ingestion.lead_id),\n                    customer_name_present: Boolean(ingestion.customer_name),\n                    sender_email_present: Boolean(ingestion.email),\n                    company_present: Boolean(ingestion.company),\n                    product_interest: ingestion.product_interest || null,\n                    budget: ingestion.budget ?? null,\n                    urgency: ingestion.urgency ?? null,\n                    status: ingestion.status || null,\n                  }) } },\n                  { key: 'salesgenie.agent.name', value: { stringValue: 'email_ingestion' } },\n                  { key: 'salesgenie.prompt.version', value: { stringValue: 'ingestion-v1' } },\n                ],\n              },\n            ],\n          },\n        ],\n      },\n    ],\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        128
+      ],
+      "id": "67960ad6-5ba7-481a-a404-cb041fa136e8",
+      "name": "Build Email Ingestion OTEL Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://us.cloud.langfuse.com/api/public/otel/v1/traces",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-langfuse-ingestion-version",
+              "value": "4"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        944,
+        128
+      ],
+      "id": "96a82f91-6c83-46b4-8edc-e251aab2460d",
+      "name": "Langfuse — Send Ingestion Span",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "WrWpvZF7xNabwo5F",
+          "name": "Unnamed credential 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function randomHex(length) {\n  const chars = '0123456789abcdef';\n  let value = '';\n  for (let i = 0; i < length; i++) {\n    value += chars[Math.floor(Math.random() * chars.length)];\n  }\n  return value;\n}\n\nlet qualifier = $json.output || $json;\nif (typeof qualifier === 'string') {\n  try {\n    qualifier = JSON.parse(qualifier);\n  } catch {\n    qualifier = {};\n  }\n}\n\nconst source = $('Create SalesGenie Trace Context').item.json;\nconst trace = source.trace_context;\nconst ingestionRaw = $('Email Ingestion Agent').item.json;\n\nlet ingestion = ingestionRaw.output || ingestionRaw;\nif (typeof ingestion === 'string') {\n  try {\n    ingestion = JSON.parse(ingestion);\n  } catch {\n    ingestion = {};\n  }\n}\n\nconst now = `${Date.now()}000000`;\n\nreturn {\n  json: {\n    resourceSpans: [\n      {\n        resource: {\n          attributes: [\n            { key: 'service.name', value: { stringValue: 'salesgenie-n8n' } },\n            { key: 'deployment.environment.name', value: { stringValue: trace.environment } },\n          ],\n        },\n        scopeSpans: [\n          {\n            scope: { name: 'salesgenie', version: '1.0.0' },\n            spans: [\n              {\n                traceId: trace.trace_id,\n                spanId: randomHex(16),\n                parentSpanId: trace.root_span_id,\n                name: 'lead.qualification',\n                kind: 1,\n                startTimeUnixNano: trace.workflow_start_unix_nano,\n                endTimeUnixNano: now,\n                attributes: [\n                  { key: 'langfuse.trace.name', value: { stringValue: trace.trace_name } },\n                  { key: 'langfuse.observation.type', value: { stringValue: 'generation' } },\n                  { key: 'langfuse.observation.input', value: { stringValue: JSON.stringify({\n                    product_interest: ingestion.product_interest || null,\n                    budget: ingestion.budget ?? null,\n                    urgency: ingestion.urgency ?? null,\n                    status: ingestion.status || null,\n                    notes_present: Boolean(ingestion.notes),\n                  }) } },\n                  { key: 'langfuse.observation.output', value: { stringValue: JSON.stringify({\n                    classification: qualifier.classification || null,\n                  }) } },\n                  { key: 'salesgenie.agent.name', value: { stringValue: 'lead_qualifier' } },\n                  { key: 'salesgenie.prompt.version', value: { stringValue: 'qualifier-v1' } },\n                ],\n              },\n            ],\n          },\n        ],\n      },\n    ],\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        816
+      ],
+      "id": "cbc11945-daea-4a5d-b139-697b6d93ccb9",
+      "name": "Build Qualifier OTEL Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://us.cloud.langfuse.com/api/public/otel/v1/traces",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-langfuse-ingestion-version",
+              "value": "4"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3088,
+        816
+      ],
+      "id": "c9795fb4-2838-4eb4-818f-0a53d3cada71",
+      "name": "Langfuse — Send Qualifier Span",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "WrWpvZF7xNabwo5F",
+          "name": "Unnamed credential 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Convert Email Ingestion Agent's JSON-string output\n// into normal n8n fields before Lead Qualifier receives it.\n\nlet lead = $json.output || $json;\n\nif (typeof lead === 'string') {\n  try {\n    lead = JSON.parse(lead);\n  } catch (error) {\n    return {\n      json: {\n        parsing_error: true,\n        parsing_error_message: 'Email Ingestion output is not valid JSON.',\n        raw_output: $json.output || null,\n      },\n    };\n  }\n}\n\nreturn {\n  json: {\n    ...lead,\n    message_type: 'sales_inquiry',\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        928
+      ],
+      "id": "20059bef-086a-4327-97c4-0af82a43381f",
+      "name": "Parse Ingestion Output"
+    },
+    {
+      "parameters": {
+        "sendTo": "csavitapatil@gmail.com",
+        "subject": "Cold - classification ",
+        "message": "Need clarification",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2928,
+        2272
+      ],
+      "id": "ff8d0f6f-7e16-4ce1-b7f3-348f79a8b373",
+      "name": "Send a message",
+      "webhookId": "fee9b725-34b8-4371-af3d-f185ad1b9b0e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gn3jCMORNEul8fAT",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4db35085-69bd-442b-8430-f5dc642f7c55",
+              "name": "Report_type",
+              "value": "weekly_sales_insights",
+              "type": "string"
+            },
+            {
+              "id": "4d0f8ee0-d4b7-4ec2-bf41-c44868fffd9b",
+              "name": "reporting_timezone\t",
+              "value": "IST ",
+              "type": "string"
+            },
+            {
+              "id": "11af5192-f6f9-4050-999e-4d5eeaf58642",
+              "name": "Report_end",
+              "value": "=2026-04-13",
+              "type": "string"
+            },
+            {
+              "id": "3b5282cc-52d5-43d3-bda9-60e4618729f5",
+              "name": "Report_start",
+              "value": "=2026-04-01",
+              "type": "string"
+            },
+            {
+              "id": "e2fb70f8-b334-439b-a1d8-45aac62632a3",
+              "name": "report_generated_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1408,
+        3760
+      ],
+      "id": "92293cef-aba8-4519-a052-faedc09f79dc",
+      "name": "Set Weekly Reporting Window"
+    },
+    {
+      "parameters": {
+        "jsCode": "// All 13 lead records coming from Google Sheets\nconst allRows = $input.all().map(item => item.json);\n\n// Fixed sample reporting period for testing\nconst reportStart = new Date('2026-04-01T00:00:00.000Z');\nconst reportEnd = new Date('2026-04-13T23:59:59.999Z');\n\n// Converts Google Sheets dates such as 2026-04-01 or 4/1/2026\nfunction parseDate(value) {\n  if (!value) return null;\n\n  const text = String(value).trim();\n\n  // YYYY-MM-DD format\n  const isoMatch = text.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);\n\n  if (isoMatch) {\n    const [, year, month, day] = isoMatch;\n\n    return new Date(Date.UTC(\n      Number(year),\n      Number(month) - 1,\n      Number(day),\n      12, 0, 0\n    ));\n  }\n\n  // M/D/YYYY or MM/DD/YYYY format\n  const sheetMatch = text.match(/^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})$/);\n\n  if (sheetMatch) {\n    const [, month, day, year] = sheetMatch;\n\n    return new Date(Date.UTC(\n      Number(year),\n      Number(month) - 1,\n      Number(day),\n      12, 0, 0\n    ));\n  }\n\n  const parsed = new Date(text);\n\n  return Number.isNaN(parsed.getTime()) ? null : parsed;\n}\n\n// Converts budget to number; Unknown becomes null\nfunction parseBudget(value) {\n  if (\n    value === null ||\n    value === undefined ||\n    value === '' ||\n    String(value).trim().toLowerCase() === 'unknown'\n  ) {\n    return null;\n  }\n\n  const result = Number(String(value).replace(/[$,]/g, ''));\n\n  return Number.isFinite(result) ? result : null;\n}\n\n// Normalizes Hot/Warm/Cold values\nfunction normalizeTier(value) {\n  const tier = String(value || '').trim().toLowerCase();\n\n  if (tier === 'hot') return 'Hot';\n  if (tier === 'warm') return 'Warm';\n  if (tier === 'cold') return 'Cold';\n\n  return null;\n}\n\n// Normalizes product interests into weekly report categories\nfunction normalizeCategory(value) {\n  const product = String(value || '').toLowerCase();\n\n  if (product.includes('full office package')) {\n    return 'Full Office Package';\n  }\n\n  if (product.includes('desk')) {\n    return 'Desks';\n  }\n\n  if (product.includes('chair')) {\n    return 'Chairs';\n  }\n\n  if (\n    product.includes('conference') ||\n    product.includes('table') ||\n    product.includes('huddle')\n  ) {\n    return 'Tables & Meeting Furniture';\n  }\n\n  if (product.includes('accessory')) {\n    return 'Accessories';\n  }\n\n  if (\n    product.includes('storage') ||\n    product.includes('bookshelf') ||\n    product.includes('filing')\n  ) {\n    return 'Storage';\n  }\n\n  return 'Unspecified';\n}\n\n// Normalize every Google Sheets lead row\nconst normalizedRows = allRows.map(row => {\n  const rawTier = String(\n    row.lead_tier ||\n    row.classification ||\n    ''\n  ).trim();\n\n  const status = String(\n    row.status ||\n    row.Status ||\n    row['Status '] ||\n    ''\n  ).trim();\n\n  const date = parseDate(\n    row.processed_at ||\n    row.date_received\n  );\n\n  return {\n    lead_id: row.lead_id || null,\n    customer_name: row.customer_name || null,\n    company: row.company || null,\n    raw_lead_tier: rawTier,\n    lead_tier: normalizeTier(rawTier),\n    product_interest: row.product_interest || null,\n    reporting_category: normalizeCategory(row.product_interest),\n    budget: parseBudget(row.budget),\n    urgency: row.urgency || null,\n    status: status || null,\n    notes: row.notes || row.Notes || null,\n    processed_at: date ? date.toISOString() : null,\n  };\n});\n\n// Include only rows within the fixed test period\nconst rowsInWindow = normalizedRows.filter(lead => {\n  if (!lead.processed_at) return false;\n\n  const processedDate = new Date(lead.processed_at);\n\n  return processedDate >= reportStart && processedDate <= reportEnd;\n});\n\n// Treat a row as spam if either status or raw tier says spam\nconst excludedSpam = rowsInWindow.filter(lead => {\n  return (\n    String(lead.status || '').toLowerCase() === 'spam' ||\n    String(lead.raw_lead_tier || '').toLowerCase() === 'spam'\n  );\n});\n\nconst excludedSupport = rowsInWindow.filter(lead => {\n  return String(lead.status || '').toLowerCase() === 'support';\n});\n\nconst validSalesLeads = rowsInWindow.filter(lead => {\n  const isSpam =\n    String(lead.status || '').toLowerCase() === 'spam' ||\n    String(lead.raw_lead_tier || '').toLowerCase() === 'spam';\n\n  const isSupport =\n    String(lead.status || '').toLowerCase() === 'support';\n\n  return !isSpam && !isSupport;\n});\n\n// Return one weekly-data object to the metric-calculation node\nreturn [\n  {\n    json: {\n      report_type: 'weekly_sales_insights',\n\n      reporting_period: {\n        start_date: '2026-04-01T00:00:00.000Z',\n        end_date: '2026-04-13T23:59:59.999Z',\n        timezone: 'Asia/Kolkata',\n      },\n\n      generated_at: new Date().toISOString(),\n\n      rows_read: allRows.length,\n      rows_in_reporting_window: rowsInWindow.length,\n      excluded_spam_count: excludedSpam.length,\n      excluded_support_count: excludedSupport.length,\n      valid_sales_leads: validSalesLeads,\n\n      // Temporary debug fields: remove after confirming results\n      debug_first_sheet_date: allRows[0]?.processed_at || null,\n      debug_first_normalized_date: normalizedRows[0]?.processed_at || null,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        3712
+      ],
+      "id": "cf332631-51da-4eaa-9bf8-947946caa56e",
+      "name": "Filter Weekly Leads"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst leads = input.valid_sales_leads || [];\n\nconst tierCounts = {\n  Hot: 0,\n  Warm: 0,\n  Cold: 0,\n  Unclassified: 0,\n};\n\nconst categoryCounts = {};\nconst urgencyCounts = {\n  High: 0,\n  Medium: 0,\n  Low: 0,\n  Unknown: 0,\n};\n\nconst statusCounts = {};\nconst numericBudgets = [];\n\nfor (const lead of leads) {\n  // Lead tier counts\n  if (lead.lead_tier && tierCounts[lead.lead_tier] !== undefined) {\n    tierCounts[lead.lead_tier] += 1;\n  } else {\n    tierCounts.Unclassified += 1;\n  }\n\n  // Category counts\n  const category = lead.reporting_category || 'Unspecified';\n  categoryCounts[category] = (categoryCounts[category] || 0) + 1;\n\n  // Urgency counts\n  const urgency = ['High', 'Medium', 'Low'].includes(lead.urgency)\n    ? lead.urgency\n    : 'Unknown';\n  urgencyCounts[urgency] += 1;\n\n  // Status counts\n  const status = lead.status || 'Unknown';\n  statusCounts[status] = (statusCounts[status] || 0) + 1;\n\n  // Budget calculations\n  if (typeof lead.budget === 'number' && Number.isFinite(lead.budget)) {\n    numericBudgets.push(lead.budget);\n  }\n}\n\nconst topCategories = Object.entries(categoryCounts)\n  .map(([category, lead_count]) => ({ category, lead_count }))\n  .sort((a, b) => b.lead_count - a.lead_count || a.category.localeCompare(b.category))\n  .slice(0, 3);\n\nconst totalPipelineBudget = numericBudgets.reduce((sum, value) => sum + value, 0);\n\nconst averageBudget = numericBudgets.length > 0\n  ? Number((totalPipelineBudget / numericBudgets.length).toFixed(2))\n  : null;\n\n// Select up to five priority follow-up candidates.\n// Deterministic priority: Hot first, High urgency second, known budget descending.\nconst tierPriority = { Hot: 3, Warm: 2, Cold: 1, null: 0 };\nconst urgencyPriority = { High: 3, Medium: 2, Low: 1, Unknown: 0 };\n\nconst priorityFollowUp = [...leads]\n  .sort((a, b) => {\n    const tierDifference = (tierPriority[b.lead_tier] || 0) - (tierPriority[a.lead_tier] || 0);\n    if (tierDifference !== 0) return tierDifference;\n\n    const urgencyDifference = (urgencyPriority[b.urgency] || 0) - (urgencyPriority[a.urgency] || 0);\n    if (urgencyDifference !== 0) return urgencyDifference;\n\n    return (b.budget || 0) - (a.budget || 0);\n  })\n  .slice(0, 5)\n  .map(lead => ({\n    lead_id: lead.lead_id,\n    company: lead.company || 'Unknown company',\n    lead_tier: lead.lead_tier,\n    urgency: lead.urgency,\n    budget: lead.budget,\n    product_interest: lead.product_interest,\n    notes: lead.notes,\n  }));\n\nconst dataQualityNotes = [];\n\nif (tierCounts.Unclassified > 0) {\n  dataQualityNotes.push(`${tierCounts.Unclassified} valid sales lead(s) had no recognized Hot/Warm/Cold tier.`);\n}\n\nif (leads.length > numericBudgets.length) {\n  dataQualityNotes.push(`${leads.length - numericBudgets.length} valid sales lead(s) had no numeric budget and were excluded from budget calculations.`);\n}\n\nreturn [{\n  json: {\n    report_type: input.report_type,\n    reporting_period: input.reporting_period,\n    generated_at: input.generated_at,\n    source: {\n      system: 'SalesGenie Google Sheets',\n      rows_read: input.rows_read,\n      rows_in_reporting_window: input.rows_in_reporting_window,\n      included_leads: leads.length,\n      excluded_spam: input.excluded_spam_count,\n      excluded_support: input.excluded_support_count,\n    },\n    metrics: {\n      total_leads: leads.length,\n      lead_tier_breakdown: tierCounts,\n      top_categories: topCategories,\n      average_budget: averageBudget,\n      total_pipeline_budget: totalPipelineBudget,\n      budgeted_lead_count: numericBudgets.length,\n      urgency_breakdown: urgencyCounts,\n      status_breakdown: statusCounts,\n    },\n    priority_follow_up: priorityFollowUp,\n    data_quality_notes: dataQualityNotes,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        3664
+      ],
+      "id": "3b01b58b-4049-4581-b0f8-0d6def875102",
+      "name": "Calculate Weekly Sales Metrics"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0",
+          "mode": "list",
+          "cachedResultName": "crm_export_sample",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 553807953,
+          "mode": "list",
+          "cachedResultName": "Weekly aggregator",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit#gid=553807953"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1888,
+        3712
+      ],
+      "id": "1cf24485-6bc1-4e20-af18-7cdd76d7889e",
+      "name": "Read Salesgenie Lead Result",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nWY3IfHfG91y6OOs",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0",
+          "mode": "list",
+          "cachedResultName": "crm_export_sample",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 514688250,
+          "mode": "list",
+          "cachedResultName": "Product catalog",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit#gid=514688250"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -2224,
+        2992
+      ],
+      "id": "20d3b6bd-2c23-4666-a14f-769c60bc425d",
+      "name": "Get row(s) in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nWY3IfHfG91y6OOs",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "15d418fd-4ff4-4e05-abfd-ba9b1c1174ee",
+              "leftValue": "={{ String($json.classification || '').trim().toLowerCase() }}",
+              "rightValue": "cold",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1680,
+        1808
+      ],
+      "id": "fa7b1bb1-97ab-43d5-85ed-58c04b958a39",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('Build RAG Search Query').first().json;\nconst retrievedItems = $input.all();\n\nfunction getValue(pageContent, label) {\n  const text = String(pageContent || '').replace(/^=/, '').trim();\n\n  const match = text.match(\n    new RegExp(`^${label}:\\\\s*(.+)$`, 'im')\n  );\n\n  return match ? match[1].trim() : null;\n}\n\nconst catalogProducts = retrievedItems\n  .map((item) => {\n    const result = item.json || {};\n\n    const pageContent =\n      result.document?.pageContent ||\n      result.pageContent ||\n      '';\n\n    const priceText = getValue(pageContent, 'Price');\n\n    const numericPrice = priceText\n      ? Number(priceText.replace(/[^0-9.]/g, ''))\n      : null;\n\n    return {\n      product_id: getValue(pageContent, 'Product ID'),\n      product_name: getValue(pageContent, 'Product Name'),\n      category: getValue(pageContent, 'Category'),\n\n      price: numericPrice,\n      unit_price: numericPrice,\n\n      availability: getValue(pageContent, 'Availability'),\n      description: getValue(pageContent, 'Description'),\n\n      retrieval_score: result.score ?? null,\n    };\n  })\n  .filter(\n    (product) =>\n      product.product_id &&\n      product.product_name &&\n      product.category &&\n      Number.isFinite(product.price) &&\n      product.availability\n  );\n\nconst uniqueCatalogProducts = [\n  ...new Map(\n    catalogProducts.map((product) => [product.product_id, product])\n  ).values(),\n];\n\nreturn [\n  {\n    json: {\n      lead_details: {\n        lead_id: lead.lead_id || null,\n        customer_name: lead.customer_name || null,\n        email: lead.email || null,\n        company: lead.company || null,\n        lead_tier: lead.classification || null,\n        product_interest: lead.product_interest || null,\n        total_budget: lead.budget ?? null,\n        urgency: lead.urgency || null,\n        notes: lead.notes || null,\n      },\n\n      catalog_version: 'pinecone-rag-v1',\n\n      catalog_products: uniqueCatalogProducts,\n\n      rag_metadata: {\n        namespace: 'default',\n        rag_query: lead.rag_query || null,\n        retrieved_product_count: uniqueCatalogProducts.length,\n        retrieved_product_ids: uniqueCatalogProducts.map(\n          (product) => product.product_id\n        ),\n      },\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        1616
+      ],
+      "id": "ba432a08-ee30-4558-944b-35884aa7ae4d",
+      "name": "Format Retrieved Catalog Context"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const lead = $json;\n\n// Get the existing trace context\nconst trace_context =\n  lead.trace_context ||\n  $('Create SalesGenie Trace Context').item.json.trace_context;\n\nif (!trace_context || !trace_context.trace_id) {\n  throw new Error('Trace context not found');\n}\n\nconst queryParts = [\n  `Requested product: ${lead.product_interest || 'unknown'}`,\n\n  lead.budget !== null &&\n  lead.budget !== undefined &&\n  lead.budget !== ''\n    ? `Budget: ${lead.budget} USD`\n    : null,\n\n  lead.urgency\n    ? `Urgency: ${lead.urgency}`\n    : null,\n\n  lead.notes\n    ? `Customer requirements: ${lead.notes}`\n    : null\n]\n  .filter(Boolean)\n  .join('\\n');\n\nreturn {\n  json: {\n    ...lead,\n\n    // Add this field to the output\n    trace_context,\n\n    rag_query: queryParts,\n\n    rag_config: {\n      namespace: 'default',\n      top_k: 8,\n      catalog_version: 'google-sheets-phase-1'\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2496,
+        2192
+      ],
+      "id": "57770520-ef45-431b-854f-c500b6623660",
+      "name": "Build RAG Search Query"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function getField(...possibleNames) {\n  for (const fieldName of possibleNames) {\n    const value = $json[fieldName];\n\n    if (\n      value !== undefined &&\n      value !== null &&\n      String(value).trim() !== ''\n    ) {\n      return String(value).trim();\n    }\n  }\n\n  return '';\n}\n\nconst productId = getField(\n  'product_id',\n  'Product ID',\n  'ProductID',\n  'productId',\n  'ID',\n  'id'\n);\n\nconst productName = getField(\n  'product_name',\n  'Product Name',\n  'ProductName',\n  'productName',\n  'Name',\n  'name'\n);\n\nconst category = getField(\n  'category',\n  'Category'\n);\n\nconst price = getField(\n  'price',\n  'Price',\n  'unit_price',\n  'Unit Price',\n  'UnitPrice'\n);\n\nconst availability = getField(\n  'availability',\n  'Availability',\n  'stock_status',\n  'Stock Status',\n  'StockStatus'\n);\n\nconst finish = getField(\n  'finish',\n  'Finish',\n  'color',\n  'Color',\n  'colour',\n  'Colour'\n);\n\nconst useCase = getField(\n  'use_case',\n  'Use Case',\n  'UseCase'\n);\n\nconst features = getField(\n  'features',\n  'Features'\n);\n\nconst warranty = getField(\n  'warranty',\n  'Warranty'\n);\n\nconst description = getField(\n  'description',\n  'Description',\n  'product_description',\n  'Product Description'\n);\n\nconst missingFields = [];\n\nif (!productId) missingFields.push('Product ID');\nif (!productName) missingFields.push('Product Name');\nif (!price) missingFields.push('Price');\nif (!availability) missingFields.push('Availability');\n\nif (missingFields.length > 0) {\n  throw new Error(\n    `Missing required catalog fields: ${missingFields.join(', ')}. ` +\n    `Available Google Sheets fields: ${Object.keys($json).join(', ')}`\n  );\n}\n\nconst catalogText = [\n  `Product ID: ${productId}`,\n  `Product Name: ${productName}`,\n  `Category: ${category || 'Not specified'}`,\n  `Price: ${price}`,\n  `Availability: ${availability}`,\n  finish ? `Finish: ${finish}` : null,\n  useCase ? `Use Case: ${useCase}` : null,\n  features ? `Features: ${features}` : null,\n  warranty ? `Warranty: ${warranty}` : null,\n  description ? `Description: ${description}` : null,\n]\n  .filter(Boolean)\n  .join('\\n');\n\nreturn {\n  json: {\n    catalog_text: catalogText,\n    product_id: productId,\n    product_name: productName,\n    category,\n    price,\n    availability,\n    finish,\n    use_case: useCase,\n    features,\n    warranty,\n    description,\n    catalog_version: 'google-sheets-phase-1',\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1760,
+        2960
+      ],
+      "id": "17011a07-3b90-4338-807c-1912c7a52658",
+      "name": "Build Catalog Text"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1392,
+        2976
+      ],
+      "id": "b9c0ccf1-ea8f-46b3-8717-0fe31582004d",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "mode": "load",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "salesgenie-catalog",
+          "mode": "list",
+          "cachedResultName": "salesgenie-catalog"
+        },
+        "prompt": "={{ $json.rag_query }}",
+        "topK": 8,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        -1792,
+        2368
+      ],
+      "id": "5404e065-b3c5-48ee-a09a-fba282945359",
+      "name": "Pinecone — Retrieve Products",
+      "credentials": {
+        "pineconeApi": {
+          "id": "NDup2DxeAjMYzIS2",
+          "name": "Pinecone account 8"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -1824,
+        2544
+      ],
+      "id": "acdcb30c-0ad2-4a7d-94c1-65bb95f90d06",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "2Ib6MMdl8cUUdeec",
+          "name": "OpenAI account 17"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "salesgenie-catalog",
+          "mode": "list",
+          "cachedResultName": "salesgenie-catalog"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        -736,
+        2944
+      ],
+      "id": "e4479cc1-62cb-4347-8cf3-646744a1d8e4",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "NDup2DxeAjMYzIS2",
+          "name": "Pinecone account 8"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -592,
+        3216
+      ],
+      "id": "afe81d40-a8ce-424e-8c8c-a88814014ce9",
+      "name": "Embeddings OpenAI1",
+      "credentials": {
+        "openAiApi": {
+          "id": "2Ib6MMdl8cUUdeec",
+          "name": "OpenAI account 17"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.catalog_text }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        -384,
+        3216
+      ],
+      "id": "f558abc8-cedc-41c6-81a1-bf0f4f9a924a",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "sendTo": "csavitapatil@gmail.com",
+        "subject": "=Approval required: {{ $json.lead_tier }} lead {{ $json.lead_id }}",
+        "message": "=A SalesGenie recommendation requires approval.  Customer: {{ $json.customer_name }} Customer email: {{ $json.customer_email }}  Recommended products: {{ $json.recommended_product_names }}  Open the salesgenie_approvals sheet.  Change approval_status to either: - Approved - Rejected",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        1456
+      ],
+      "id": "84a815db-582d-4b59-807d-0cff64398995",
+      "name": "Send a message1",
+      "webhookId": "793eafde-2f75-4682-af87-760574bfb986",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gn3jCMORNEul8fAT",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function parseRecommendation(input) {\n  let value = input?.output ?? input;\n\n  if (typeof value === 'object' && value !== null) {\n    return value;\n  }\n\n  if (typeof value !== 'string') {\n    throw new Error(\n      'Product Recommender output is missing. Connect this Code node directly after Product Recommender Agent.'\n    );\n  }\n\n  let cleanValue = value\n    .replace(/\\u00A0/g, ' ')\n    .replace(/\\u202F/g, ' ')\n    .replace(/^\\uFEFF/, '')\n    .trim()\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/\\s*```$/i, '');\n\n  const firstBrace = cleanValue.indexOf('{');\n  const lastBrace = cleanValue.lastIndexOf('}');\n\n  if (firstBrace === -1 || lastBrace === -1) {\n    throw new Error(\n      `Product Recommender output does not contain complete JSON. Received: ${cleanValue.slice(0, 300)}`\n    );\n  }\n\n  cleanValue = cleanValue.slice(firstBrace, lastBrace + 1);\n\n  try {\n    return JSON.parse(cleanValue);\n  } catch (error) {\n    throw new Error(\n      `Product Recommender JSON cannot be parsed: ${error.message}. Received: ${cleanValue.slice(0, 300)}`\n    );\n  }\n}\n\nfunction escapeHtml(value) {\n  return String(value || '')\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;')\n    .replace(/'/g, '&#039;');\n}\n\n// Read the Product Recommender output from the direct input\nconst recommendation = parseRecommendation($json);\n\n// Read lead data from your RAG formatter node\nconst formatterData = $('Format Retrieved Catalog Context').first().json;\nconst lead = formatterData.lead_details || {};\n\n// Validate recommendation result\nconst products = Array.isArray(recommendation.recommendations)\n  ? recommendation.recommendations\n  : [];\n\nif (\n  recommendation.recommendation_status !== 'recommendations_found' ||\n  products.length === 0\n) {\n  throw new Error(\n    `Cannot create approval request because no recommendations were found. Status: ${\n      recommendation.recommendation_status || 'missing'\n    }`\n  );\n}\n\nif (!lead.email) {\n  throw new Error(\n    'Cannot create approval request because the customer email is missing.'\n  );\n}\n\n// Create short product summary for Google Sheets\nconst productNames = products\n  .map((product) => {\n    const name = product.product_name || 'Unnamed product';\n    const price = product.unit_price ?? 'Price unavailable';\n\n    return `${name} — $${price}`;\n  })\n  .join(', ');\n\n// Create formatted HTML cards for the customer email\nconst productHtml = products\n  .map((product, index) => {\n    const name = escapeHtml(product.product_name || 'Unnamed product');\n    const price = escapeHtml(product.unit_price ?? 'Price unavailable');\n    const availability = escapeHtml(\n      product.availability || 'Availability not confirmed'\n    );\n    const rationale = escapeHtml(product.rationale || '');\n\n    const limitations =\n      Array.isArray(product.limitations) && product.limitations.length > 0\n        ? `\n          <p style=\"margin:10px 0 0;color:#8a5b00;font-size:14px;line-height:1.5;\">\n            <strong>Note:</strong> ${escapeHtml(product.limitations.join(' '))}\n          </p>\n        `\n        : '';\n\n    return `\n      <div style=\"margin:0 0 18px;padding:16px;border:1px solid #d9e1df;border-radius:8px;background:#ffffff;\">\n        <div style=\"font-size:17px;font-weight:700;color:#1f2937;line-height:1.4;\">\n          ${index + 1}. ${name}\n        </div>\n\n        <div style=\"margin:7px 0 10px;font-size:15px;font-weight:700;color:#1f4b45;\">\n          $${price}\n          <span style=\"color:#15803d;font-weight:600;\">(${availability})</span>\n        </div>\n\n        <div style=\"font-size:15px;color:#374151;line-height:1.55;\">\n          ${rationale}\n        </div>\n\n        ${limitations}\n      </div>\n    `;\n  })\n  .join('');\n\n// Date and email details\nconst now = new Date();\n\nconst draftSubject = 'Standing Desk Options from Oak & Ember Interiors';\n\nconst customerName = escapeHtml(lead.customer_name || 'there');\n\nconst customerMessage = escapeHtml(\n  recommendation.customer_message ||\n    'We selected product options based on your request.'\n);\n\n// Create formatted HTML email body\nconst draftBody = `\n<!DOCTYPE html>\n<html>\n  <body style=\"margin:0;padding:0;background:#f4f6f5;font-family:Arial,Helvetica,sans-serif;color:#1f2937;\">\n    <div style=\"max-width:680px;margin:0 auto;padding:28px 16px;\">\n\n      <div style=\"padding:24px 28px;background:#1f4b45;border-radius:10px 10px 0 0;\">\n        <div style=\"font-size:23px;font-weight:700;color:#ffffff;\">\n          Oak &amp; Ember Interiors\n        </div>\n        <div style=\"margin-top:5px;font-size:14px;color:#d8eee7;\">\n          Product recommendations for your workspace\n        </div>\n      </div>\n\n      <div style=\"padding:30px 28px;background:#ffffff;border:1px solid #d9e1df;border-top:none;border-radius:0 0 10px 10px;\">\n\n        <p style=\"margin:0 0 18px;font-size:16px;line-height:1.55;\">\n          Hi ${customerName},\n        </p>\n\n        <p style=\"margin:0 0 22px;font-size:16px;line-height:1.55;color:#374151;\">\n          ${customerMessage}\n        </p>\n\n        ${productHtml}\n\n        <p style=\"margin:24px 0 0;font-size:16px;line-height:1.55;color:#374151;\">\n          Please let us know if you would like more details about any of these options.\n        </p>\n\n        <p style=\"margin:25px 0 0;font-size:16px;line-height:1.55;color:#374151;\">\n          Best regards,<br />\n          <strong>Oak &amp; Ember Interiors</strong>\n        </p>\n\n      </div>\n    </div>\n  </body>\n</html>\n`;\n\nreturn {\n  json: {\n    approval_id: `APR-${now.getTime()}-${lead.lead_id || 'UNKNOWN'}`,\n\n    lead_id: lead.lead_id || null,\n    lead_tier: lead.lead_tier || null,\n\n    customer_name: lead.customer_name || null,\n    customer_email: lead.email,\n\n    recommended_product_names: productNames,\n\n    draft_subject: draftSubject,\n    draft_body: draftBody,\n\n    approval_status: 'Pending',\n\n    reviewer_name: null,\n    reviewed_at: null,\n    sent_at: null,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2416,
+        1600
+      ],
+      "id": "3670d61f-7615-415c-a9bf-df5c4afce4d9",
+      "name": "Create Simple Approval Request"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0",
+          "mode": "list",
+          "cachedResultName": "crm_export_sample",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 558531351,
+          "mode": "list",
+          "cachedResultName": "salesgenie_approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit#gid=558531351"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "customer_name": "customer_name",
+            "lead_tier": "lead_tier",
+            "draft_subject": "draft_subject",
+            "approval_status": "pending ",
+            "reviewer_name": "reviewer_name",
+            "reviewed_at": "reviewed_at",
+            "sent_at": "sent_at",
+            "draft_body": "draft_body",
+            "recommended_product_names": "recommended_product_name",
+            "customer_email": "customer_email",
+            "Lead_id": "lead_id",
+            "approval_id": "approval_id"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "approval_id",
+              "displayName": "approval_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Lead_id",
+              "displayName": "Lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_email",
+              "displayName": "customer_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lead_tier",
+              "displayName": "lead_tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "recommended_product_names",
+              "displayName": "recommended_product_names",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "draft_subject",
+              "displayName": "draft_subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "draft_body",
+              "displayName": "draft_body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "approval_status",
+              "displayName": "approval_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "reviewer_name",
+              "displayName": "reviewer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "reviewed_at",
+              "displayName": "reviewed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2992,
+        1696
+      ],
+      "id": "2602a3b8-903b-4151-b22f-d570db6128d1",
+      "name": "Append Approval Record",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nWY3IfHfG91y6OOs",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1424,
+        3680
+      ],
+      "id": "f72157dd-bba6-4227-ac3d-63b536d5b9c5",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "15e6eb75-3eb5-43a5-8ddf-0ed637978cf5",
+              "leftValue": "={{ String($json.approval_status || '').trim().toLowerCase() }}",
+              "rightValue": "approved",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -944,
+        3680
+      ],
+      "id": "14a2b0e6-b006-4779-a18e-1483af748ee5",
+      "name": "Is Approved and Unsent?"
+    },
+    {
+      "parameters": {
+        "sendTo": "=csavitapatil@gmail.com",
+        "subject": "={{ $json.draft_subject }}",
+        "message": "={{ $json.draft_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -672,
+        3664
+      ],
+      "id": "65700586-3d76-4093-9ba1-ac7565827f62",
+      "name": "Send Approved Customer Email",
+      "webhookId": "d663e6de-6c2e-4045-8d05-b7553217a624",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gn3jCMORNEul8fAT",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0",
+          "mode": "list",
+          "cachedResultName": "crm_export_sample",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 558531351,
+          "mode": "list",
+          "cachedResultName": "salesgenie_approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit#gid=558531351"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "approval_id": "={{ $('Is Approved and Unsent?').item.json.approval_id }}",
+            "sent_at": "=\t{{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "approval_id"
+          ],
+          "schema": [
+            {
+              "id": "approval_id",
+              "displayName": "approval_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Lead_id",
+              "displayName": "Lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "customer_email",
+              "displayName": "customer_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "lead_tier",
+              "displayName": "lead_tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "recommended_product_names",
+              "displayName": "recommended_product_names",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "draft_subject",
+              "displayName": "draft_subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "draft_body",
+              "displayName": "draft_body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "approval_status",
+              "displayName": "approval_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "reviewer_name",
+              "displayName": "reviewer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "reviewed_at",
+              "displayName": "reviewed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -384,
+        3664
+      ],
+      "id": "4f9eb471-79d8-4860-9be9-a3cf7cb15cf5",
+      "name": "Mark Approval Sent",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nWY3IfHfG91y6OOs",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me",
+      "typeVersion": 1,
+      "position": [
+        -832,
+        3168
+      ],
+      "id": "3dccce88-a14b-486a-abfe-2175cc1c2e4b",
+      "placeholder": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        2944
+      ],
+      "id": "6cb83996-7cd5-4af8-9892-604c18712b39",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "function randomHex(length) {\n  const chars = '0123456789abcdef';\n  let value = '';\n\n  for (let i = 0; i < length; i++) {\n    value += chars[Math.floor(Math.random() * chars.length)];\n  }\n\n  return value;\n}\n\n// Use the exact name of your query node\nconst source = $('Build RAG Search Query').first().json;\n\n// All Pinecone output items\nconst inputItems = $input.all();\n\nconst trace = source.trace_context;\n\nif (!trace || !trace.trace_id) {\n  throw new Error('Missing trace_context');\n}\n\n// Create one span for this Pinecone retrieval operation\nconst pineconeSpanId = randomHex(16);\n\nconst parentSpanId =\n  trace.current_span_id || trace.root_span_id;\n\nconst startTimeUnixNano =\n  source.pinecone_observation?.start_time_unix_nano ||\n  `${Date.now()}000000`;\n\nconst endTimeUnixNano = `${Date.now()}000000`;\n\n// Convert Pinecone output into product records\nconst rawProducts = inputItems.map(item => {\n  const data = item.json;\n\n  const metadata =\n    data.metadata ||\n    data.document?.metadata ||\n    {};\n\n  const text = String(\n    data.pageContent ||\n    data.document?.pageContent ||\n    data.text ||\n    data.document?.text ||\n    metadata.text ||\n    ''\n  );\n\n  function extract(label) {\n    const pattern = new RegExp(\n      `${label}:\\\\s*([^\\\\n\\\\r]+)`,\n      'i'\n    );\n\n    return text.match(pattern)?.[1]?.trim() || null;\n  }\n\n  const productId =\n    extract('Product ID') ||\n    data.id ||\n    metadata.product_id ||\n    null;\n\n  const productName =\n    extract('Product Name') ||\n    metadata.product_name ||\n    null;\n\n  const category =\n    extract('Category') ||\n    metadata.category ||\n    null;\n\n  const price =\n    extract('Price') ||\n    metadata.price ||\n    null;\n\n  const availability =\n    extract('Availability') ||\n    metadata.availability ||\n    null;\n\n  const description =\n    extract('Description') ||\n    metadata.description ||\n    null;\n\n  return {\n    product_id: productId,\n    product_name: productName,\n    category,\n    price,\n    availability,\n    description,\n    score: data.score ?? data.similarity ?? null\n  };\n});\n\n// Remove duplicate products while keeping the highest score\nconst uniqueProducts = [];\n\nfor (const product of rawProducts) {\n  const existing = uniqueProducts.find(\n    item => item.product_id === product.product_id\n  );\n\n  if (!existing) {\n    uniqueProducts.push(product);\n  } else {\n    const existingScore = Number(existing.score || 0);\n    const newScore = Number(product.score || 0);\n\n    if (newScore > existingScore) {\n      Object.assign(existing, product);\n    }\n  }\n}\n\nconst productIds = uniqueProducts.map(\n  product => product.product_id\n);\n\nconst scores = rawProducts.map(\n  product => product.score\n);\n\nconst inputSummary = {\n  product_interest: source.product_interest || null,\n  budget: source.budget ?? null,\n  urgency: source.urgency || null,\n  query: source.rag_query || null,\n  namespace: source.rag_config?.namespace || 'default',\n  top_k: source.rag_config?.top_k || 8\n};\n\nconst outputSummary = {\n  raw_result_count: rawProducts.length,\n  unique_product_count: uniqueProducts.length,\n  product_ids: productIds,\n  scores,\n  status: uniqueProducts.length > 0\n    ? 'success'\n    : 'no_results'\n};\n\nconst otelPayload = {\n  resourceSpans: [\n    {\n      resource: {\n        attributes: [\n          {\n            key: 'service.name',\n            value: {\n              stringValue: 'salesgenie-rag'\n            }\n          },\n          {\n            key: 'deployment.environment.name',\n            value: {\n              stringValue: trace.environment || 'development'\n            }\n          }\n        ]\n      },\n\n      scopeSpans: [\n        {\n          scope: {\n            name: 'salesgenie.rag',\n            version: '1.0.0'\n          },\n\n          spans: [\n            {\n              traceId: trace.trace_id,\n              spanId: pineconeSpanId,\n              parentSpanId: parentSpanId,\n              name: 'pinecone.retrieve_products',\n              kind: 3,\n              startTimeUnixNano,\n              endTimeUnixNano,\n\n              status: {\n                code: 1\n              },\n\n              attributes: [\n                {\n                  key: 'langfuse.trace.name',\n                  value: {\n                    stringValue:\n                      trace.trace_name ||\n                      'salesgenie.email.process'\n                  }\n                },\n                {\n                  key: 'langfuse.observation.type',\n                  value: {\n                    stringValue: 'retriever'\n                  }\n                },\n                {\n                  key: 'langfuse.observation.input',\n                  value: {\n                    stringValue: JSON.stringify(inputSummary)\n                  }\n                },\n                {\n                  key: 'langfuse.observation.output',\n                  value: {\n                    stringValue: JSON.stringify(outputSummary)\n                  }\n                },\n                {\n                  key: 'salesgenie.workflow.name',\n                  value: {\n                    stringValue: 'salesgenie.rag'\n                  }\n                },\n                {\n                  key: 'salesgenie.agent.name',\n                  value: {\n                    stringValue: 'pinecone_retrieval'\n                  }\n                },\n                {\n                  key: 'salesgenie.retrieval.result_count',\n                  value: {\n                    stringValue: String(rawProducts.length)\n                  }\n                },\n                {\n                  key: 'salesgenie.retrieval.unique_product_count',\n                  value: {\n                    stringValue: String(uniqueProducts.length)\n                  }\n                },\n                {\n                  key: 'salesgenie.retrieval.product_ids',\n                  value: {\n                    stringValue: JSON.stringify(productIds)\n                  }\n                },\n                {\n                  key: 'salesgenie.retrieval.scores',\n                  value: {\n                    stringValue: JSON.stringify(scores)\n                  }\n                },\n                {\n                  key: 'salesgenie.retrieval.namespace',\n                  value: {\n                    stringValue:\n                      source.rag_config?.namespace ||\n                      'default'\n                  }\n                },\n                {\n                  key: 'salesgenie.catalog.version',\n                  value: {\n                    stringValue:\n                      source.rag_config?.catalog_version ||\n                      trace.catalog_version ||\n                      'unknown'\n                  }\n                }\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  ]\n};\n\nreturn [\n  {\n    json: {\n      ...source,\n\n      retrieved_products: uniqueProducts,\n\n      retrieval_summary: outputSummary,\n\n      trace_context: {\n        ...trace,\n        current_span_id: pineconeSpanId\n      },\n\n      otel_payload: otelPayload\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        2496
+      ],
+      "id": "2e6c0b62-83e6-48df-acd0-adbbd7a106a3",
+      "name": "RAG - Build Pinecone Trace"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://us.cloud.langfuse.com/api/public/otel/v1/traces",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-langfuse-ingestion-version",
+              "value": "4"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.otel_payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        192,
+        2496
+      ],
+      "id": "d8e581f3-922a-4fc2-be0e-239b4e7e1a87",
+      "name": "RAG - Send Pinecone Trace to Langfuse",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "WrWpvZF7xNabwo5F",
+          "name": "Unnamed credential 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\nfunction randomHex(length) {\n  const chars = '0123456789abcdef';\n  let value = '';\n  for (let i = 0; i < length; i++) {\n    value += chars[Math.floor(Math.random() * chars.length)];\n  }\n  return value;\n}\n\nconst agentOutput = $json;\n\n// Always recover upstream RAG context as well as trace context.\nconst ragSource = $('Build RAG Search Query').first().json;\nconst source = {\n  ...ragSource,\n  ...agentOutput,\n  trace_context:\n    agentOutput.trace_context || ragSource.trace_context\n};\n\nconst trace = source.trace_context;\n\nif (!trace?.trace_id || !/^[0-9a-f]{32}$/i.test(trace.trace_id)) {\n  throw new Error('Missing or invalid 32-character trace ID');\n}\n\nconst parentSpanId = trace.current_span_id || trace.root_span_id;\n\nif (!parentSpanId || !/^[0-9a-f]{16}$/i.test(parentSpanId)) {\n  throw new Error('Missing or invalid parent span ID');\n}\n\nconst recommendationSpanId = randomHex(16);\nconst startTimeUnixNano = (BigInt(Date.now()) * 1000000n).toString();\n\n// Extract the recommendation output.\nlet recommendation =\n  agentOutput.output ??\n  agentOutput.text ??\n  agentOutput.response ??\n  agentOutput.result ??\n  agentOutput;\n\nif (typeof recommendation === 'string') {\n  try {\n    recommendation = JSON.parse(recommendation);\n  } catch {\n    recommendation = { text: recommendation };\n  }\n}\n\n// Preserve available RAG context for the span input.\nconst recommendationInput = {\n  product_interest: source.product_interest ?? null,\n  budget: source.budget ?? null,\n  urgency: source.urgency ?? null,\n  rag_query: source.rag_query ?? null,\n  retrieved_products: source.retrieved_products ?? [],\n  product_context: source.product_context ?? null\n};\n\n// Allow a measurable span duration.\nconst endTimeUnixNano =\n  (BigInt(Date.now()) * 1000000n).toString();\n\nconst attributes = [\n  {\n    key: 'langfuse.observation.type',\n    value: { stringValue: 'generation' }\n  },\n  {\n    key: 'langfuse.observation.input',\n    value: { stringValue: JSON.stringify(recommendationInput) }\n  },\n  {\n    key: 'langfuse.observation.output',\n    value: { stringValue: JSON.stringify(recommendation) }\n  },\n  {\n    key: 'langfuse.observation.model.name',\n    value: { stringValue: 'gpt-4o-mini' }\n  },\n  {\n    key: 'salesgenie.workflow.name',\n    value: { stringValue: 'salesgenie.product_recommendation' }\n  },\n  {\n    key: 'salesgenie.agent.name',\n    value: { stringValue: 'product_recommendation' }\n  }\n];\n\nconst usage =\n  agentOutput.usage ||\n  agentOutput.token_usage ||\n  agentOutput.tokenUsage;\n\nif (usage) {\n  const inputTokens =\n    usage.input_tokens ?? usage.prompt_tokens ?? usage.inputTokens;\n  const outputTokens =\n    usage.output_tokens ?? usage.completion_tokens ?? usage.outputTokens;\n\n  if (inputTokens != null) {\n    attributes.push({\n      key: 'gen_ai.usage.input_tokens',\n      value: { intValue: Number(inputTokens) }\n    });\n  }\n\n  if (outputTokens != null) {\n    attributes.push({\n      key: 'gen_ai.usage.output_tokens',\n      value: { intValue: Number(outputTokens) }\n    });\n  }\n}\n\nconst otelPayload = {\n  resourceSpans: [{\n    resource: {\n      attributes: [{\n        key: 'service.name',\n        value: { stringValue: 'salesgenie-recommendation' }\n      }]\n    },\n    scopeSpans: [{\n      scope: {\n        name: 'salesgenie.recommendation',\n        version: '1.0.0'\n      },\n      spans: [{\n        traceId: trace.trace_id,\n        spanId: recommendationSpanId,\n        parentSpanId,\n        name: 'product.recommendation',\n        kind: 1,\n        startTimeUnixNano,\n        endTimeUnixNano,\n        status: { code: 1 },\n        attributes\n      }]\n    }]\n  }]\n};\n\nreturn {\n  json: {\n    ...source,\n    recommendation_result: recommendation,\n    trace_context: {\n      ...trace,\n      current_span_id: recommendationSpanId\n    },\n    otel_payload: otelPayload\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2512,
+        3392
+      ],
+      "id": "05d3e8fb-2cce-485e-86d7-8499527b8adf",
+      "name": "Recommendation - Build OTEL Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://us.cloud.langfuse.com/api/public/otel/v1/traces",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-langfuse-ingestion-version",
+              "value": "4"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.otel_payload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3888,
+        3360
+      ],
+      "id": "28573602-5921-4141-adac-42a8f5ca137e",
+      "name": "Recommendation - Send Trace to Langfuse",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "WrWpvZF7xNabwo5F",
+          "name": "Unnamed credential 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Recommend up to three products for this customer.\n\nUse only `CATALOG_PRODUCTS` below. The catalog is the source of truth.\n\nLEAD_DETAILS\n{{ JSON.stringify($json.lead_details) }}\n\nCATALOG_VERSION\n{{ $json.catalog_version }}\n\nCATALOG_PRODUCTS\n{{ JSON.stringify($json.catalog_products) }}",
+        "options": {
+          "systemMessage": "=You are the Product Recommender Agent for Oak & Ember Interiors.\n\nTASK\nRead the customer enquiry, LEAD_DETAILS, and CATALOG_PRODUCTS.\nRecommend exactly 3 eligible products from CATALOG_PRODUCTS whenever 3 eligible products exist.\n\nCATALOG IS THE ONLY SOURCE OF TRUTH\nUse only information provided in:\n- CUSTOMER_ENQUIRY\n- LEAD_DETAILS\n- CATALOG_PRODUCTS\n\nNever invent, rename, alter, or create products.\n\nEvery recommended product must:\n- have a product_id that exists exactly in CATALOG_PRODUCTS;\n- use the exact product_name from that catalog row;\n- use the exact price from that catalog row;\n- use the exact availability from that catalog row;\n- use only product features stated in that product row's description.\n\nNever invent or assume:\n- products or product IDs;\n- prices or discounts;\n- availability, delivery dates, restock dates, or inventory quantity;\n- colors, finishes, materials, dimensions, warranties, or features;\n- competitor claims or price-match policies.\n\nINPUT\nYou receive:\n- CUSTOMER_ENQUIRY\n- LEAD_DETAILS\n- CATALOG_VERSION\n- CATALOG_PRODUCTS\n\nCATEGORY MAPPING RULES\nUse these mappings when comparing the customer request with catalog categories:\n\n- \"Standing Desk\", \"Adjustable Desk\", \"Sit-Stand Desk\", \"Home Office Desk\", or \"Executive Desk\" → catalog category \"Desk\"\n- \"Ergonomic Chair\", \"Office Chair\", or \"Task Chair\" → catalog category \"Chair\"\n- \"Conference Table\", \"Meeting Table\", \"Boardroom Table\", or \"Huddle Table\" → catalog category \"Table\"\n- \"Desk Accessory\", \"Desk Gift\", \"Monitor Arm\", \"Desk Mat\", or \"Keyboard Tray\" → catalog category \"Accessory\"\n- \"Bookshelf\", \"Filing Cabinet\", or \"Storage\" → catalog category \"Storage\"\n\nFor a request for a Standing Desk:\n- Full adjustable desks are the strongest matches.\n- A Sit-Stand Desk Converter is an allowed third-ranked alternative if it is in stock and within budget.\n- If recommending a Sit-Stand Desk Converter, state in limitations:\n  \"This is a desk converter rather than a full standing desk.\"\n\nELIGIBILITY RULES\nA product is eligible only if all conditions are true:\n\n1. It exists in CATALOG_PRODUCTS.\n2. availability is exactly \"In Stock\".\n3. It matches the mapped requested category.\n4. Its price is within budget.\n5. It does not conflict with a mandatory requirement.\n\nBUDGET RULES — HARD REQUIREMENT\n- If per_unit_budget is present, each recommended product must be priced at or below per_unit_budget.\n- Otherwise, if total_budget is present, each recommended product must be priced at or below total_budget.\n- Never recommend a product that exceeds the applicable budget.\n- Do not include an over-budget product as an alternative.\n- A limitation such as \"price exceeds budget\" never permits recommending an over-budget product.\n\nExample:\nCustomer budget: 800\nCatalog product price: 899\nRequired result: do not recommend that product.\n\nPREFERENCES VERSUS MANDATORY REQUIREMENTS\nTreat these as preferences unless the customer explicitly says \"must\", \"required\", \"only\", or \"cannot consider alternatives\":\n- color;\n- finish;\n- material;\n- style.\n\nA product may still be recommended when:\n- it is in stock;\n- it is within budget;\n- it matches the requested category;\n- it meets the primary functional need;\n- but the catalog does not confirm a preferred color or finish.\n\nIn that situation:\n- recommend the product;\n- do not claim the color or finish is available;\n- add a limitation explaining the gap.\n\nExample:\nCustomer asks for a standing desk under $800, adjustable height, dark walnut finish.\nA catalog product is in stock, costs $749, and is height-adjustable, but does not mention dark walnut.\nThat product is eligible.\nIts limitation must state:\n\"The catalog does not confirm a dark walnut finish.\"\n\nEXACTLY THREE RECOMMENDATIONS\n- Return exactly 3 recommendations if at least 3 eligible products exist.\n- Rank recommendations from best match to third-best match.\n- If fewer than 3 eligible products exist, return every eligible product.\n- Never use an unrelated, out-of-stock, over-budget, or invented product just to reach 3.\n\nRANKING\nRank products in this order:\n1. Direct match to requested product type.\n2. Match to main functional requirements.\n3. Budget fit.\n4. Fit to stated use case.\n5. Preferred finish, color, or material.\n\nRATIONALE RULES\nFor each recommended product:\n- Explain why it matches using only catalog facts.\n- Mention the product’s relevant feature from description.\n- Do not claim an unconfirmed requirement is met.\n\nLIMITATION RULES\nInclude limitations when applicable.\n\nExamples:\n- \"The catalog does not confirm a dark walnut finish.\"\n- \"The catalog lists white and black frame options, not dark walnut.\"\n- \"This product uses manual crank adjustment rather than electric adjustment.\"\n- \"This is a desk converter rather than a full standing desk.\"\n\nCUSTOMER MESSAGE\ncustomer_message must never be empty.\n\nWhen products are found:\n- state how many products were selected;\n- state they are in stock;\n- reference the customer budget when provided;\n- state any important finish/color limitation;\n- do not promise delivery, discounts, price matching, or stock reservation.\n\nFINAL CHECK BEFORE OUTPUT\nFor every recommendation, verify:\n1. product_id exists in CATALOG_PRODUCTS;\n2. product_name matches the exact catalog row;\n3. unit_price matches exact catalog price;\n4. availability is exactly \"In Stock\";\n5. price is within the applicable budget;\n6. category is relevant based on CATEGORY MAPPING RULES;\n7. rationale uses only catalog-supported facts.\n\nIf any check fails, remove the product.\n\nOUTPUT RULES\n- Return only one valid JSON object.\n- Do not return Markdown or explanations outside JSON.\n- Do not wrap the result inside an \"output\" field.\n- Return recommendation_status \"recommendations_found\" when one or more products are recommended.\n\nRETURN THIS JSON FORMAT\n{\n  \"recommendation_status\": \"recommendations_found | no_match | clarification_needed\",\n  \"recommendations\": [\n    {\n      \"rank\": 1,\n      \"product_id\": \"\",\n      \"product_name\": \"\",\n      \"category\": \"\",\n      \"unit_price\": 0,\n      \"availability\": \"\",\n      \"match_score\": 0,\n      \"rationale\": \"\",\n      \"limitations\": []\n    }\n  ],\n  \"customer_message\": \"\",\n  \"grounding\": {\n    \"catalog_version\": \"\",\n    \"used_product_ids\": []\n  }\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        912,
+        1712
+      ],
+      "id": "4bc7040f-30ff-4881-873c-2a7ea9e0db6d",
+      "name": "Product Recommender Agent"
+    },
+    {
+      "parameters": {
+        "content": "# 1. EMAIL INGESTION + TRACE CONTEXT\n\nGet the incoming email, extract lead fields, and create one trace_id for the complete SalesGenie journey.\n\nObservability: Build Email Ingestion OTEL Payload → Langfuse — Send Ingestion Span",
+        "height": 252,
+        "width": 1720,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1280,
+        896
+      ],
+      "id": "2c8b4f3e-000f-4fa5-8384-8a58d14173f0",
+      "name": "Sticky Note - 1 Email Ingestion and Trace Context"
+    },
+    {
+      "parameters": {
+        "content": "# 2. LEAD QUALIFICATION\n\nClassify the lead as Hot, Warm, or Cold. Preserve the existing trace_context so later spans remain in the same trace.\n\nObservability: Build Qualifier OTEL Payload → Langfuse — Send Qualifier Span",
+        "height": 396,
+        "width": 1404
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        640,
+        784
+      ],
+      "id": "35977b2e-26ad-473d-aed7-166a7ec7c9c7",
+      "name": "Sticky Note - 2 Lead Qualification"
+    },
+    {
+      "parameters": {
+        "content": "# 3. RAG RETRIEVAL\n\nBuild the customer search query, retrieve catalog matches from Pinecone, and format the retrieved products for the recommender.\n\nObservability: RAG - Build Pinecone Trace → RAG - Send Pinecone Trace to Langfuse\nThe RAG span must reuse the same trace_id and use a new span_id.",
+        "height": 420,
+        "width": 2200,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2608,
+        2256
+      ],
+      "id": "9733d3a6-9321-40f8-9f73-78d20698513e",
+      "name": "Sticky Note - 3 RAG Search and Pinecone Retrieval"
+    },
+    {
+      "parameters": {
+        "content": "# 4. PRODUCT RECOMMENDATION\n\nUse the customer requirements and retrieved catalog context to produce a product recommendation.\n\nObservability: Recommendation - Build OTEL Payload → Recommendation - Send Trace to Langfuse\nThe recommendation span must reuse the same trace_id and reference its parent span.",
+        "height": 380,
+        "width": 3364,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1280,
+        1568
+      ],
+      "id": "aa920a52-1308-480a-9fcd-f1d56f7fbd9c",
+      "name": "Sticky Note - 4 Product Recommendation"
+    },
+    {
+      "parameters": {
+        "content": "# 5. VALIDATION + HUMAN APPROVAL\n\nApply deterministic business checks, create the approval request, store it, and send the customer email only after approval.",
+        "height": 1336,
+        "width": 1750,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        1248
+      ],
+      "id": "fa0f1b60-8d74-4584-a519-c1663fc18f72",
+      "name": "Sticky Note - 5 Validation and Human Approval"
+    },
+    {
+      "parameters": {
+        "content": "# 6. CATALOG INGESTION\n\nRead product rows, build catalog text, embed the documents, and upsert them into Pinecone.\n\nThis is the knowledge-base preparation path used by the RAG retrieval step.",
+        "height": 520,
+        "width": 2350,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2368,
+        2832
+      ],
+      "id": "27c0c0af-9858-46c1-b2cf-e3989122d3f3",
+      "name": "Sticky Note - 6 Catalog Ingestion"
+    },
+    {
+      "parameters": {
+        "content": "# 7. SCHEDULED REPORTING\n\nRead processed leads and calculate weekly SalesGenie metrics separately from the real-time sales workflow.",
+        "height": 300,
+        "width": 2100,
+        "color": "#327640"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1648,
+        3552
+      ],
+      "id": "bd0e2c20-9dea-4468-8bce-857783b49f0e",
+      "name": "Sticky Note - 7 Scheduled Reporting"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1488,
+        1008
+      ],
+      "id": "6c20bdef-80cf-4e20-89d1-fe841ac36cfb",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0",
+          "mode": "list",
+          "cachedResultName": "crm_export_sample",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 558531351,
+          "mode": "list",
+          "cachedResultName": "salesgenie_approvals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GxaDG7GloQOP8znDlcUj6N6Rk2e8kVj5yz_pGeoc9t0/edit#gid=558531351"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1184,
+        3680
+      ],
+      "id": "d8e8e749-bf02-4198-afb2-d2ed37ccb631",
+      "name": "Email Approval",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "nWY3IfHfG91y6OOs",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Create SalesGenie Trace Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Email Ingestion Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Ingestion Agent": {
+      "main": [
+        [
+          {
+            "node": "Build Email Ingestion OTEL Payload",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Parse Ingestion Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Lead Qualifier Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Qualifier Agent": {
+      "main": [
+        [
+          {
+            "node": "Build Qualifier OTEL Payload",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ingestion+ qualifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Product Recommender Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ingestion+ qualifier": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create SalesGenie Trace Context": {
+      "main": [
+        [
+          {
+            "node": "Email Ingestion Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email Ingestion OTEL Payload": {
+      "main": [
+        [
+          {
+            "node": "Langfuse — Send Ingestion Span",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Qualifier OTEL Payload": {
+      "main": [
+        [
+          {
+            "node": "Langfuse — Send Qualifier Span",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Ingestion Output": {
+      "main": [
+        [
+          {
+            "node": "Lead Qualifier Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Weekly Reporting Window": {
+      "main": [
+        [
+          {
+            "node": "Read Salesgenie Lead Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Weekly Leads": {
+      "main": [
+        [
+          {
+            "node": "Calculate Weekly Sales Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Salesgenie Lead Result": {
+      "main": [
+        [
+          {
+            "node": "Filter Weekly Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Build Catalog Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build RAG Search Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build RAG Search Query": {
+      "main": [
+        [
+          {
+            "node": "Pinecone — Retrieve Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Catalog Text": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Retrieved Catalog Context": {
+      "main": [
+        [
+          {
+            "node": "Product Recommender Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone — Retrieve Products": {
+      "main": [
+        [
+          {
+            "node": "Format Retrieved Catalog Context",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RAG - Build Pinecone Trace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone — Retrieve Products",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Simple Approval Request": {
+      "main": [
+        [
+          {
+            "node": "Append Approval Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Approval Record": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Email Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Approved and Unsent?": {
+      "main": [
+        [
+          {
+            "node": "Send Approved Customer Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Approved Customer Email": {
+      "main": [
+        [
+          {
+            "node": "Mark Approval Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG - Build Pinecone Trace": {
+      "main": [
+        [
+          {
+            "node": "RAG - Send Pinecone Trace to Langfuse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recommendation - Build OTEL Payload": {
+      "main": [
+        [
+          {
+            "node": "Recommendation - Send Trace to Langfuse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Product Recommender Agent": {
+      "main": [
+        [
+          {
+            "node": "Recommendation - Build OTEL Payload",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Simple Approval Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Approval": {
+      "main": [
+        [
+          {
+            "node": "Is Approved and Unsent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "881a1422-e6ee-452a-8128-da6d23046b67",
+  "meta": {
+    "instanceId": "a1324051b40f50cb2231d6f93d6cbbece9de9ecbc0d7a129f40ed5a67185e253"
+  },
+  "nodeGroups": [],
+  "id": "O9HQQbcLoWMmEMzI",
+  "tags": []
+}
